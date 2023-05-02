@@ -1,0 +1,256 @@
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>NIFTY Option Chain Chart</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #f0f0f0;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      h1 {
+        font-weight: bold;
+        margin-top: 30px;
+        margin-bottom: 20px;
+        text-align: center;
+      }
+
+      #expiryDate, #pcr, #refreshtime {
+        font-weight: bold;
+        margin-bottom: 20px;
+        text-align: center;
+      }
+
+      canvas {
+        margin-bottom: 30px;
+      }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body>
+    <h1>NIFTY Option Chain Chart</h1>
+    <div id="refreshtime"></div>
+    <div id="expiryDate"></div>
+    <div id="pcr"></div>
+    <canvas id="oiChart"></canvas>
+    <canvas id="oitotalChart"></canvas>
+    <canvas id="myChart"></canvas>
+    <script>
+        
+      function fetchData() {
+        const getLastRefreshTime = () => {
+        const performance = window.performance || window.webkitPerformance;
+        if (performance) {
+            const timing = performance.timing;
+            const lastRefreshTime = new Date(timing.loadEventEnd);
+            return lastRefreshTime.toLocaleTimeString();
+        }
+        return null;
+        }
+
+        fetch(`https://www.nseindia.com/api/option-chain-indices?symbol=NIFTY`)
+          .then((res) => res.json())
+          .then((data) => {
+            const expiryDate = new Date(data["filtered"]["data"][0].expiryDate);
+            const expiryDateStr = expiryDate.toDateString();
+
+            const expiryDateElement = document.getElementById("expiryDate");
+            expiryDateElement.textContent = `Expiry Date: ${expiryDateStr}`;
+
+            const refreshtimeElement = document.getElementById("refreshtime");
+            refreshtimeElement.textContent = `Updated At: ${getLastRefreshTime()}`;
+
+            const ceData = data["filtered"]["data"].map((option) => ({
+              x: option["CE"].strikePrice,
+              y: option["CE"].totalTradedVolume,
+            }));
+
+            const peData = data["filtered"]["data"].map((option) => ({
+              x: option["PE"].strikePrice,
+              y: option["PE"].totalTradedVolume,
+            }));
+
+            const ceTotal = ceData.reduce((acc, curr) => acc + curr.y, 0);
+            const peTotal = peData.reduce((acc, curr) => acc + curr.y, 0);
+            const pcr = peTotal / ceTotal;
+
+            const pcr_element = document.getElementById("pcr");
+            pcr_element.textContent = `PCR: ${pcr.toPrecision(2)}`;
+
+            const ctx = document.getElementById("myChart").getContext("2d");
+            const myChart = new Chart(ctx, {
+              type: "bar",
+              data: {
+                datasets: [
+                  {
+                    label: "CE",
+                    data: ceData,
+                    backgroundColor: "rgba(255, 99, 132, 0.2)",
+                    borderColor: "rgba(255, 99, 132, 1)",
+                    borderWidth: 1,
+                    barPercentage: 1,
+                    categoryPercentage: 1
+                  },
+                  {
+                    label: "PE",
+                    data: peData,
+                    backgroundColor: "rgba(75, 192, 192, 0.2)",
+                    borderColor: "rgba(75, 192, 192, 1)",
+                    borderWidth: 1,
+                    barPercentage: 1,
+                    categoryPercentage: 1
+                  },
+                ],
+              },
+              options: {
+                scales: {
+                  x: {
+                    type: "linear",
+                    position: "bottom",
+                    title: {
+                      display: true,
+                      text: "Strike Price",
+                    },
+                  },
+                  y: {
+                    type: "linear",
+                    position: "left",
+                    title: {
+                      display: true,
+                      text: "Total Traded Volume",
+                    },
+                  },
+                },
+              },
+            });
+            // Open Interest chart data
+            const ceOIData = data["filtered"]["data"].map((option) => ({
+              x: option["CE"].strikePrice,
+              y: option["CE"].changeinOpenInterest,
+            }));
+
+            const peOIData = data["filtered"]["data"].map((option) => ({
+              x: option["PE"].strikePrice,
+              y: option["PE"].changeinOpenInterest,
+            }));
+
+            const oiCtx = document.getElementById("oiChart").getContext("2d");
+            const oiChart = new Chart(oiCtx, {
+              type: "bar",
+              data: {
+                datasets: [
+                  {
+                    label: "CE",
+                    data: ceOIData,
+                    backgroundColor: "rgba(255, 99, 132, 0.2)",
+                    borderColor: "rgba(255, 99, 132, 1)",
+                    borderWidth: 1,
+                    barPercentage: 1,
+                    categoryPercentage: 1
+                  },
+                  {
+                    label: "PE",
+                    data: peOIData,
+                    backgroundColor: "rgba(75, 192, 192, 0.2)",
+                    borderColor: "rgba(75, 192, 192, 1)",
+                    borderWidth: 1,
+                    barPercentage: 1,
+                    categoryPercentage: 1
+                  },
+                ],
+              },
+              options: {
+                scales: {
+                  x: {
+                    type: "linear",
+                    position: "bottom",
+                    title: {
+                      display: true,
+                      text: "Strike Price",
+                    },
+                  },
+                  y: {
+                    type: "linear",
+                    position: "left",
+                    title: {
+                      display: true,
+                      text: "OI Change",
+                    },
+                  },
+                },
+              },
+            });
+
+            // Total IO data
+            const ceTotalOIData = data["filtered"]["data"].map((option) => ({
+              x: option["CE"].strikePrice,
+              y: option["CE"].openInterest,
+            }));
+
+            const peTotalOIData = data["filtered"]["data"].map((option) => ({
+              x: option["PE"].strikePrice,
+              y: option["PE"].openInterest,
+            }));
+
+            const oitotalCtx = document.getElementById("oitotalChart").getContext("2d");
+            const oitotalChart = new Chart(oitotalCtx, {
+              type: "bar",
+              data: {
+                datasets: [
+                  {
+                    label: "CE",
+                    data: ceTotalOIData,
+                    backgroundColor: "rgba(255, 99, 132, 0.2)",
+                    borderColor: "rgba(255, 99, 132, 1)",
+                    borderWidth: 1,
+                    barPercentage: 1,
+                    categoryPercentage: 1
+                  },
+                  {
+                    label: "PE",
+                    data: peTotalOIData,
+                    backgroundColor: "rgba(75, 192, 192, 0.2)",
+                    borderColor: "rgba(75, 192, 192, 1)",
+                    borderWidth: 1,
+                    barPercentage: 1,
+                    categoryPercentage: 1
+                  },
+                ],
+              },
+              options: {
+                scales: {
+                  x: {
+                    type: "linear",
+                    position: "bottom",
+                    title: {
+                      display: true,
+                      text: "Strike Price",
+                    },
+                  },
+                  y: {
+                    type: "linear",
+                    position: "left",
+                    title: {
+                      display: true,
+                      text: "Total OI",
+                    },
+                  },
+                },
+              },
+            });
+
+          })
+          .catch((err) => console.log(err));
+      }
+
+      setInterval(fetchData, 30000);
+      fetchData();
+    </script>
+  </body>
+</html>
